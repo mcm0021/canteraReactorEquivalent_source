@@ -2,7 +2,16 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-def preprocess_data(input_data, output_data, scalar_input_size=5, scalar_output_size=2, MinMax=True):
+def preprocess_data(
+        input_data, 
+        output_data, 
+        scalar_input_max_bounds,
+        scalar_input_min_bounds,
+        scalar_output_max_bounds,
+        scalar_output_min_bounds,
+        scalar_input_size=5, 
+        scalar_output_size=2, 
+        MinMax=True):
     """
     Preprocess the input data for the neural network.
     Returns:
@@ -11,8 +20,8 @@ def preprocess_data(input_data, output_data, scalar_input_size=5, scalar_output_
 
     if MinMax: 
         # Min max scaling
-        input_data[:, :scalar_input_size] = (input_data[:, :scalar_input_size] - np.min(input_data[:, :scalar_input_size], axis=0)) / (np.max(input_data[:, :scalar_input_size], axis=0) - np.min(input_data[:, :scalar_input_size], axis=0))
-        output_data[:, :scalar_output_size] = (output_data[:, :scalar_output_size] - np.min(output_data[:, :scalar_output_size], axis=0)) / (np.max(output_data[:, :scalar_output_size], axis=0) - np.min(output_data[:, :scalar_output_size], axis=0))
+        input_data[:, :scalar_input_size] = (input_data[:, :scalar_input_size] - scalar_input_min_bounds) / (scalar_input_max_bounds - scalar_input_min_bounds)
+        output_data[:, :scalar_output_size] = (output_data[:, :scalar_output_size] - scalar_output_min_bounds) / (scalar_output_max_bounds - scalar_output_min_bounds)
     else:
         # Standardization (Z-score normalization)
         input_data[:, :scalar_input_size] = (input_data[:, :scalar_input_size] - np.mean(input_data[:, :scalar_input_size], axis=0)) / np.std(input_data[:, :scalar_input_size], axis=0)
@@ -50,9 +59,11 @@ def mape(predictions, targets):
     tp_predictions, species_predictions, coverages_predictions = predictions
     tp_targets, species_targets, coverages_targets = targets
 
-    np.abs((tp_predictions - tp_targets) / tp_targets).mean() * 100, \
-    np.abs((species_predictions - species_targets) / species_targets).mean() * 100, \
-    np.abs((coverages_predictions - coverages_targets) / coverages_targets).mean() * 100
+    return (
+        np.abs((tp_predictions - tp_targets) / tp_targets).mean() * 100,
+        np.abs((species_predictions - species_targets) / species_targets).mean() * 100,
+        np.abs((coverages_predictions - coverages_targets) / coverages_targets).mean() * 100,
+    )
 
 class Net(nn.Module):
     def __init__(self, scalar_input_size, species_size, coverages_size, hidden_size, scalar_output_size):

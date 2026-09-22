@@ -43,8 +43,16 @@ def loss_function(predictions, targets):
     ce_loss_species = nn.MSELoss()(species_predictions, species_targets)
     ce_loss_coverages = nn.MSELoss()(coverages_predictions, coverages_targets)
 
-    total_loss = mse_loss + ce_loss_species + 10 * ce_loss_coverages
+    total_loss = mse_loss + ce_loss_species + ce_loss_coverages
     return total_loss
+
+def mape(predictions, targets):
+    tp_predictions, species_predictions, coverages_predictions = predictions
+    tp_targets, species_targets, coverages_targets = targets
+
+    np.abs((tp_predictions - tp_targets) / tp_targets).mean() * 100, \
+    np.abs((species_predictions - species_targets) / species_targets).mean() * 100, \
+    np.abs((coverages_predictions - coverages_targets) / coverages_targets).mean() * 100
 
 class Net(nn.Module):
     def __init__(self, scalar_input_size, species_size, coverages_size, hidden_size, scalar_output_size):

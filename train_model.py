@@ -4,14 +4,8 @@ import numpy as np
 from torch.utils.data import DataLoader
 from torch.optim import Adam
 
-from src.data_generation import generate_input_output_data
 from src.dataset_reactor import ReactorDataset
 from src.net import Net, preprocess_data, loss_function
-
-# input_data, input_data_frame, output_data, output_data_frame = generate_input_output_data(10000, 5, 4, 5, [273.15, 1000.0], [1e5, 2e6], [0.2, 0.8], [-6.0, 0.0], [0.0, 4.0])
-
-# np.save('input_data.npy', input_data)
-# np.save('output_data.npy', output_data)
 
 with open('input_data.npy', 'rb') as f:
     input_data= np.load(f)
@@ -44,7 +38,7 @@ epochs = 5000
 optimizer = Adam(model.parameters(), lr=0.001)
 
 for epoch in range(epochs): 
-    model.train(True)
+    model.train()
     for inputs, targets in training_loader: 
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()

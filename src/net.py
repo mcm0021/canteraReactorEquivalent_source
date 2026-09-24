@@ -19,7 +19,7 @@ def preprocess_data(
     """
 
     if MinMax: 
-        # Min max scaling
+        # Min max scaling with provided bounds
         input_data[:, :scalar_input_size] = (input_data[:, :scalar_input_size] - scalar_input_min_bounds) / (scalar_input_max_bounds - scalar_input_min_bounds)
         output_data[:, :scalar_output_size] = (output_data[:, :scalar_output_size] - scalar_output_min_bounds) / (scalar_output_max_bounds - scalar_output_min_bounds)
     else:
@@ -29,6 +29,12 @@ def preprocess_data(
         
         
     return torch.tensor(input_data, dtype=torch.float32), torch.tensor(output_data, dtype=torch.float32)
+
+def denormalize_data_Min_Max(data, min_bounds, max_bounds):
+    """
+    Denormalize the data using the provided min and max bounds.
+    """
+    return data * (max_bounds - min_bounds) + min_bounds
 
 def loss_function(predictions, targets):
     """
@@ -56,6 +62,15 @@ def loss_function(predictions, targets):
     return total_loss
 
 def mape(predictions, targets):
+
+    """
+    Calculate the Mean Absolute Percentage Error (MAPE) for the predictions.
+    Parameters:
+    - predictions: Tuple containing (tp_predictions, species_predictions, coverages_predictions)
+    - targets: Tuple containing (tp_targets, species_targets, coverages_targets)
+    Returns:
+    - Tuple containing MAPE for temperature and pressure, mass fractions, and surface coverages.
+    """
     tp_predictions, species_predictions, coverages_predictions = predictions
     tp_targets, species_targets, coverages_targets = targets
 

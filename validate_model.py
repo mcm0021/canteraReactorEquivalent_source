@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 import numpy as np
 
 from src.net import Net, mape, preprocess_data 
@@ -26,6 +25,7 @@ input_data, output_data = preprocess_data(input_data,
                                             scalar_output_max_bounds=np.array([1000.0, 2e6]),
                                             scalar_output_min_bounds=np.array([273.15, 1e5]),
                                            )
+
 dataset = ReactorDataset(input_data, output_data)
 
 for i in range(len(dataset)):
@@ -34,9 +34,17 @@ for i in range(len(dataset)):
     prediction = model.predict(x.unsqueeze(0))
 
     targets = (y[:2].unsqueeze(0), y[2:6].unsqueeze(0), y[6:].unsqueeze(0))
+
+    tp, species, coverages = prediction
+    tp_targets, species_targets, coverages_targets = targets
+
+    diff = (np.abs(tp - tp_targets), np.abs(species - species_targets), np.abs(coverages - coverages_targets))
+
     mape_error = mape(prediction, targets)
 
+    print(f"Difference: {diff}")
     print(f"Sample {i}: MAPE Error: {mape_error}")
+
 
 
 

@@ -21,6 +21,9 @@ def generate_input_data(
         cat_surf_log_bounds
 ): 
 
+    if num_samples < species_size + coverages_size:
+        raise ValueError("num_samples must be greater than or equal to species_size + coverages_size")
+    
     # Pure states
     pure_mass_fractions = np.eye(species_size)
     pure_surface_coverages = np.eye(coverages_size)

@@ -1,0 +1,18 @@
+50000 (0.8/0.2 split) datapoints,
+128 neurons per layer,
+2 hidden layer,
+0.001 learning rate,
+9000 epochs,
+128 batch size,
+
+Validation dataset evaluation with MAPE (10000 samples):
+Bin 0-10%  - TP: 6046.0, Species: 4448.0
+Bin 10-20% - TP: 3885.0, Species: 2275.0
+Bin 20-30% - TP: 68.0, Species: 566.0
+Bin 30-40% - TP: 1.0, Species: 282.0
+Bin 40-50% - TP: 0.0, Species: 184.0
+Bin 50-60% - TP: 0.0, Species: 131.0
+Bin 60-70% - TP: 0.0, Species: 99.0
+Bin 70-80% - TP: 0.0, Species: 77.0
+Bin 80-90% - TP: 0.0, Species: 60.0
+Bin +90% - TP: 0.0, Species: 1878.0

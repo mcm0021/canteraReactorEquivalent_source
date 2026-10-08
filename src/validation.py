@@ -13,6 +13,19 @@ def validate_composition(name, values, species_order):
     if not isclose(sum(values), 1.0, rel_tol=0.0, abs_tol=1.0e-12):
         raise ValueError(f"{name} entries must sum to one")
 
+def valid_composition(name, values, species_order):
+    """Reject invalid vectors instead of letting Cantera normalize them silently."""
+    if len(values) != len(species_order):
+        raise ValueError(
+            f"{name} must contain {len(species_order)} entries in this order: "
+            f"{species_order}"
+        )
+    if any(value < 0.0 for value in values):
+        return False
+    if not isclose(sum(values), 1.0, rel_tol=0.0, abs_tol=1.0e-12):
+        return False
+    return True
+
 
 def validate_inputs(
     input_state,
@@ -34,11 +47,11 @@ def validate_inputs(
         surface_species_order,
     )
 
-    # if not minimum_temperature <= input_state["temperature"] <= maximum_temperature:
-    #     raise ValueError(
-    #         "temperature must be within the common thermodynamic range "
-    #         f"[{minimum_temperature}, {maximum_temperature}] kelvin"
-    #     )
+    if not minimum_temperature <= input_state["temperature"] <= maximum_temperature:
+        raise ValueError(
+            "temperature must be within the common thermodynamic range "
+            f"[{minimum_temperature}, {maximum_temperature}] kelvin"
+        )
     if input_state["pressure"] <= 0.0:
         raise ValueError("pressure must be positive")
     if input_state["advance_time"] < 0.0:

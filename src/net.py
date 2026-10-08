@@ -31,9 +31,9 @@ def preprocess_data(
         output_data[:, :scalar_output_size] = (output_data[:, :scalar_output_size] - np.mean(output_data[:, :scalar_output_size], axis=0)) / np.std(output_data[:, :scalar_output_size], axis=0)
 
     input_data[:, scalar_input_size:] = transform(input_data[:, scalar_input_size:], func)
-    output_data[:, scalar_output_size:] = transform(output_data[:, scalar_output_size:], func)
+    output_data[:, scalar_output_size: (scalar_output_size + 4)] = transform(output_data[:, scalar_output_size:(scalar_output_size + 4)], func)
         
-    return torch.tensor(input_data, dtype=torch.float32), torch.tensor(output_data, dtype=torch.float32)
+    return input_data, output_data
 
 def min_max_scaling(
         data, 

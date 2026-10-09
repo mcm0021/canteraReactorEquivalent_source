@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 
+from sklearn.preprocessing import FunctionTransformer
+
 def preprocess_data(
         input_data, 
         output_data, 
@@ -9,6 +11,7 @@ def preprocess_data(
         scalar_input_min_bounds,
         scalar_output_max_bounds,
         scalar_output_min_bounds,
+        func=lambda x: x**0.5,
         scalar_input_size=5, 
         scalar_output_size=2, 
         MinMax=True):
@@ -20,16 +23,34 @@ def preprocess_data(
 
     if MinMax: 
         # Min max scaling with provided bounds
-        input_data[:, :scalar_input_size] = (input_data[:, :scalar_input_size] - scalar_input_min_bounds) / (scalar_input_max_bounds - scalar_input_min_bounds)
-        output_data[:, :scalar_output_size] = (output_data[:, :scalar_output_size] - scalar_output_min_bounds) / (scalar_output_max_bounds - scalar_output_min_bounds)
+        input_data[:, :scalar_input_size] = min_max_scaling(input_data[:, :scalar_input_size], scalar_input_min_bounds, scalar_input_max_bounds)
+        output_data[:, :scalar_output_size] = min_max_scaling(output_data[:, :scalar_output_size], scalar_output_min_bounds, scalar_output_max_bounds)
     else:
         # Standardization (Z-score normalization)
         input_data[:, :scalar_input_size] = (input_data[:, :scalar_input_size] - np.mean(input_data[:, :scalar_input_size], axis=0)) / np.std(input_data[:, :scalar_input_size], axis=0)
         output_data[:, :scalar_output_size] = (output_data[:, :scalar_output_size] - np.mean(output_data[:, :scalar_output_size], axis=0)) / np.std(output_data[:, :scalar_output_size], axis=0)
-        
-        
-    return torch.tensor(input_data, dtype=torch.float32), torch.tensor(output_data, dtype=torch.float32)
 
+    input_data[:, scalar_input_size:] = transform(input_data[:, scalar_input_size:], func)
+    output_data[:, scalar_output_size: (scalar_output_size + 4)] = transform(output_data[:, scalar_output_size:(scalar_output_size + 4)], func)
+        
+    return input_data, output_data
+
+def min_max_scaling(
+        data, 
+        min_bounds,
+        max_bounds
+    ):
+    return (data - min_bounds) / (max_bounds - min_bounds) 
+
+def transform(
+        data,
+        func
+):
+    transform = FunctionTransformer(func=func, validate=True)
+    return transform.fit_transform(data)
+
+
+    
 def denormalize_data_Min_Max(data, min_bounds, max_bounds):
     """
     Denormalize the data using the provided min and max bounds.

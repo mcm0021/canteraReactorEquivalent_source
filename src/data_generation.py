@@ -6,7 +6,7 @@ from scipy.stats import qmc
 import cantera as ct
 
 from src.reactor import LocalThermalEquilibriumReactor
-from src.validation import validate_inputs
+from src.validation import validate_inputs, valid_composition
 
 
 def generate_input_data(
@@ -99,9 +99,10 @@ def generate_output_data(
     maximum_temperature = min(gas.max_temp, solid.max_temp, surface.max_temp)
 
 
-    output_data = []
+    output_data = np.empty((0, 2 + len(gas_species_order) + len(surface_species_order))) 
     output_data_frame = pd.DataFrame(columns=["temperature", "pressure"])
-    for current in input_data:
+    data_to_delete = []
+    for i, current in enumerate(input_data):
         sample = {
             "temperature": current[0],
             "pressure": current[1],
@@ -157,15 +158,31 @@ def generate_output_data(
             "surface_coverages": reactor_surface.coverages.tolist(),
         }
 
-        output_data.append([
+        if not valid_composition(
+            "mass_fractions",
+            output_state["mass_fractions"],
+            gas_species_order,
+        ) or not valid_composition(
+            "surface_coverages",
+            output_state["surface_coverages"],
+            surface_species_order,
+        ) or not minimum_temperature <= output_state["temperature"] <= maximum_temperature or output_state["pressure"] <= 0.0 or output_state["pressure"] <= 0.0:
+            data_to_delete.append(i)
+            continue
+
+        output_data = np.append(output_data, np.column_stack([
             output_state["temperature"],
             output_state["pressure"],
             *output_state["mass_fractions"],
             *output_state["surface_coverages"]
-        ])
+        ]), axis=0)
+
         output_data_frame = pd.concat([output_data_frame, pd.DataFrame([output_state])], ignore_index=True)
+
+    for i in reversed(data_to_delete):
+        input_data = np.delete(input_data, i, axis=0)
         
-    return output_data, output_data_frame
+    return input_data, output_data, output_data_frame
 
 def generate_input_output_data(
         num_samples, 
@@ -190,6 +207,6 @@ def generate_input_output_data(
         cat_surf_log_bounds            
     )
 
-    output_data, output_data_frame = generate_output_data(input_data)
+    input_data, output_data, output_data_frame = generate_output_data(input_data)
     
     return input_data, input_data_frame, output_data, output_data_frame

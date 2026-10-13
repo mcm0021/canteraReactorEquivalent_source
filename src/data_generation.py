@@ -7,6 +7,7 @@ import cantera as ct
 
 from src.reactor import LocalThermalEquilibriumReactor
 from src.validation import validate_inputs, valid_composition
+from src.reactor import initialize_variables, initialize_reactor, advance_reactor
 
 
 def generate_input_data(
@@ -88,9 +89,7 @@ def generate_output_data(
     input_data: np.ndarray of shape (num_samples, scalar_input_size + species_size + coverages_size)
     """
     mechanism = Path(__file__).parent.parent / "mechanisms" / "coOxidationRhAlumina.yaml"
-    gas = ct.Solution(mechanism, "gas")
-    solid = ct.Solution(mechanism, "alumina")
-    surface = ct.Interface(mechanism, "surface", adjacent=[gas])
+    gas, solid, surface = initialize_variables(mechanism)
 
     gas_species_order = gas.species_names
     surface_species_order = surface.species_names
@@ -120,43 +119,20 @@ def generate_output_data(
             surface_species_order=surface_species_order
         )
 
-        gas.TPY = (
-            sample["temperature"],
-            sample["pressure"],
-            sample["mass_fractions"]
-        )
-
-        surface.coverages = sample["surface_coverages"]
-
-        cell_volume = 1.1e-6
-        gas_volume = sample["porosity"] * cell_volume
-        solid_volume = (1.0 - sample["porosity"]) * cell_volume
-        catalytic_surface_area = (
-            sample["catalytic_surface_area_per_cell_volume"] * cell_volume
-        )
-
-        reactor = LocalThermalEquilibriumReactor(
+        reactor, reactor_surface = initialize_reactor(
             gas,
             solid,
-            solid_volume,
-            clone=False,
-        )
-        reactor.volume = gas_volume
-        reactor_surface = ct.ReactorSurface(
             surface,
-            r=reactor,
-            A=catalytic_surface_area,
-            clone=False,
+            sample["temperature"],
+            sample["pressure"],
+            sample["porosity"],
+            sample["catalytic_surface_area_per_cell_volume"],
+            sample["mass_fractions"],
+            sample["surface_coverages"]
         )
-
         ct.ReactorNet([reactor]).advance(sample["advance_time"])
 
-        output_state = {
-            "temperature": reactor.T,
-            "pressure": reactor.phase.P,
-            "mass_fractions": reactor.phase.Y.tolist(),
-            "surface_coverages": reactor_surface.coverages.tolist(),
-        }
+        output_state = advance_reactor(reactor, reactor_surface, sample["advance_time"])
 
         if not valid_composition(
             "mass_fractions",

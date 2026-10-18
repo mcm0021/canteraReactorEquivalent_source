@@ -1,23 +1,48 @@
 import torch
+import torch.nn as nn
 import numpy as np
 
 from torch.utils.data import DataLoader
 from torch.optim import Adam
 
-from src.dataset_reactor import ReactorDataset
-from src.net import Net, loss_function
+from nets.stoichiometric_net import StoichiometricNet
+from datasets.dataset_sotichiometry import StoichiometryDataset
+from nets.reactor_net import min_max_scaling
 
-INPUT_DATA_PATH = "data/input_data.npy"
-OUTPUT_DATA_PATH = "data/output_data.npy"
+TRAIN_INPUT_DATA_PATH = "data/input_train.npy"
+TRAIN_OUTPUT_DATA_PATH = "data/output_train.npy"
+VALIDATION_INPUT_DATA_PATH = "data/input_val.npy"
+VALIDATION_OUTPUT_DATA_PATH = "data/output_val.npy"
 
-dataset = ReactorDataset(INPUT_DATA_PATH, OUTPUT_DATA_PATH)
+def preprocess_stoichiometry(x):
+    min_bounds = torch.tensor([273.15, 1e5, 0.2, 1e-0, 1])
+    max_bounds = torch.tensor([1000.0, 2e6, 0.8, 1e-6, 1e4])
+    x[:5] = min_max_scaling(x[:5],
+                            min_bounds=min_bounds,
+                            max_bounds=max_bounds)
+    return x
 
-training_data, validation_data = torch.utils.data.random_split(dataset, [0.8, 0.2])
 
-training_loader = DataLoader(training_data, batch_size=128, shuffle=True)
+train_data = StoichiometryDataset(
+    TRAIN_INPUT_DATA_PATH,
+    TRAIN_OUTPUT_DATA_PATH,
+    Train=True,
+    transform_input=preprocess_stoichiometry,
+)
+
+train_scalers = train_data.get_output_scalers()
+
+validation_data = StoichiometryDataset(
+    VALIDATION_INPUT_DATA_PATH,
+    VALIDATION_OUTPUT_DATA_PATH,
+    Train=False,
+    transform_input=preprocess_stoichiometry,
+    output_scalers=train_scalers)
+
+training_loader = DataLoader(train_data, batch_size=128, shuffle=True)
 validation_loader = DataLoader(validation_data, batch_size=128, shuffle=False)
 
-model = Net(scalar_input_size=5, species_size=4, coverages_size=5, hidden_size=128, scalar_output_size=2)
+model = StoichiometricNet(14, 128, 6)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 if device.type == "cuda":
@@ -25,17 +50,15 @@ if device.type == "cuda":
 
 epochs = 5000
 optimizer = Adam(model.parameters(), lr=0.001)
+loss_fn = nn.MSELoss()
 
-for epoch in range(epochs): 
+for epoch in range(epochs):
     model.train()
-    for inputs, targets in training_loader: 
+    for inputs, targets in training_loader:
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
         predictions = model(inputs)
-        tp_targets = targets[:, :2]
-        species_targets = targets[:, 2:6]
-        coverages_targets = targets[:, 6:]
-        loss = loss_function(predictions, (tp_targets, species_targets, coverages_targets))
+        loss = loss_fn(predictions, targets)
         loss.backward()
         optimizer.step()
 
@@ -47,13 +70,10 @@ for epoch in range(epochs):
                 inputs, targets = batch
                 inputs, targets = inputs.to(device), targets.to(device)
                 predictions = model(inputs)
-                tp_targets = targets[:, :2]
-                species_targets = targets[:, 2:6]
-                coverages_targets = targets[:, 6:]
-                loss_v = loss_function(predictions, (tp_targets, species_targets, coverages_targets))
+                loss_v = loss_fn(predictions, targets)
                 validation_loss += loss_v.item()
 
         print(f"Epoch {epoch}, Loss: {loss.item()}")
         print(f"Validation Loss: {validation_loss / len(validation_loader)}")
-        
+
 torch.save(model.state_dict(), "model.pth")

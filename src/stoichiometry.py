@@ -3,7 +3,7 @@ from pathlib import Path
 import cantera as ct
 import numpy as np
 
-from state_conversion import atom_counts, state_to_amounts
+from src.state_conversion import atom_counts, state_to_amounts
 
 
 

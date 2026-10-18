@@ -13,7 +13,7 @@ def run_reactor(input_data):
     input_data: pandas dataframe 
     """
     mechanism = Path(
-        __file__).parent.parent.parent / "mechanisms" / "coOxidationRhAlumina.yaml"
+        __file__).parent.parent / "mechanisms" / "coOxidationRhAlumina.yaml"
     gas, solid, surface = initialize_variables(mechanism)
 
     gas_species_order = gas.species_names
@@ -31,14 +31,14 @@ def run_reactor(input_data):
 
     for current in input_data:
         sample = {
-                    "temperature": current[0],
-                    "pressure": current[1],
-                    "porosity": current[2],
-                    "advance_time": current[3],
-                    "catalytic_surface_area_per_cell_volume": current[4],
-                    "mass_fractions": current[5:5 + len(gas_species_order)].tolist(),
-                    "surface_coverages": current[5 + len(gas_species_order):].tolist(),
-                }
+            "temperature": current[0],
+            "pressure": current[1],
+            "porosity": current[2],
+            "advance_time": current[3],
+            "catalytic_surface_area_per_cell_volume": current[4],
+            "mass_fractions": current[5:5 + len(gas_species_order)].tolist(),
+            "surface_coverages": current[5 + len(gas_species_order):].tolist(),
+        }
         reactor, reactor_surface = initialize_reactor(
             gas, solid, surface, sample["temperature"], sample["pressure"],
             sample["porosity"],
@@ -68,9 +68,9 @@ def run_reactor(input_data):
 
         n1 = read_amounts()
         targets = np.r_[amounts_to_coordinates(n0, n1, Q), reactor.T - T0]
-
-        print(targets.shape)
-        output_data = np.append(output_data, np.reshape(targets, (1, -1)), axis=0)
+        output_data = np.append(output_data,
+                                np.reshape(targets, (1, -1)),
+                                axis=0)
         output_data_frame = pd.concat([
             output_data_frame,
             pd.DataFrame([{

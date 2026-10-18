@@ -3,7 +3,7 @@ import numpy as np
 from src.data_generation_stoichiometric import run_reactor
 from src.data_generation import generate_input_output_data
 
-NUM_SAMPLES = 10
+NUM_SAMPLES = 1000
 INPUT_DATA_PATH = "data/input_data.npy"
 OUTPUT_DATA_PATH = "data/output_data_stoichiometric.npy"
 

@@ -8,54 +8,59 @@ def initialize_variables(mechanism):
     return gas, solid, surface
 
 
-def initialize_reactor(
-        gas,
-        solid,
-        surface,
-        temperature,
-        pressure,
-        porosity,
-        catalytic_surface_area_per_cell_volume,
-        mass_fractions,
-        surface_coverages,
-        cell_volume = 1.1e-6
-):
+def get_reactor_constants(gas, solid, surface, porosity,
+                          catalytic_surface_area_per_cell_volume, cell_volume):
+    W = gas.molecular_weights
+    Gamma = surface.site_density
+    sizes = np.array([s.size for s in surface.species()])
+    Vgas = porosity * cell_volume
+    A = catalytic_surface_area_per_cell_volume * cell_volume
+    return W, Gamma, sizes, Vgas, A
 
-    gas.TPY = (
-                temperature,
-                pressure,
-                mass_fractions
-            )
-    
+
+def initialize_reactor(gas,
+                       solid,
+                       surface,
+                       temperature,
+                       pressure,
+                       porosity,
+                       catalytic_surface_area_per_cell_volume,
+                       mass_fractions,
+                       surface_coverages,
+                       cell_volume=1.1e-6):
+
+    gas.TPY = (temperature, pressure, mass_fractions)
+
     surface.coverages = surface_coverages
     gas_volume = porosity * cell_volume
     solid_volume = (1.0 - porosity) * cell_volume
-    catalytic_surface_area = (
-        catalytic_surface_area_per_cell_volume * cell_volume
-    )
+    catalytic_surface_area = (catalytic_surface_area_per_cell_volume *
+                              cell_volume)
     reactor = LocalThermalEquilibriumReactor(
         gas,
         solid,
-        solid_volume, 
+        solid_volume,
         clone=False,
     )
     reactor.volume = gas_volume
     reactor_surface = ct.ReactorSurface(
-                surface,
-                r=reactor,
-                A=catalytic_surface_area,
-                clone=False,
-            )
+        surface,
+        r=reactor,
+        A=catalytic_surface_area,
+        clone=False,
+    )
     return reactor, reactor_surface
+
 
 def advance_reactor(reactor, reactor_surface, time_step):
     ct.ReactorNet([reactor]).advance(time_step)
-    return  {
-                "temperature": reactor.T,
-                "pressure": reactor.phase.P,
-                "mass_fractions": reactor.phase.Y.tolist(),
-                "surface_coverages": reactor_surface.coverages.tolist(),
-            }
+    return {
+        "temperature": reactor.T,
+        "pressure": reactor.phase.P,
+        "mass_fractions": reactor.phase.Y.tolist(),
+        "surface_coverages": reactor_surface.coverages.tolist(),
+    }
+
 
 class LocalThermalEquilibriumReactor(ct.ExtensibleIdealGasReactor):
     """Constant-volume gas reactor with solid and surface thermal mass."""
@@ -73,4 +78,5 @@ class LocalThermalEquilibriumReactor(ct.ExtensibleIdealGasReactor):
         # Add the inert solid heat capacity to the left-hand side (LHS).
         left_hand_side = np.asarray(left_hand_side)
         right_hand_side = np.asarray(right_hand_side)
-        left_hand_side[temperature_equation_index] += (self.solid_mass * self.solid.cv_mass)
+        left_hand_side[temperature_equation_index] += (self.solid_mass *
+                                                       self.solid.cv_mass)

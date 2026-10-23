@@ -4,6 +4,7 @@ import numpy as np
 
 from torch.utils.data import DataLoader
 from torch.optim import Adam
+from sklearn.preprocessing import FunctionTransformer
 
 from nets.stoichiometric_net import StoichiometricNet
 from datasets.dataset_sotichiometry import StoichiometryDataset
@@ -14,12 +15,16 @@ TRAIN_OUTPUT_DATA_PATH = "data/output_train.npy"
 VALIDATION_INPUT_DATA_PATH = "data/input_val.npy"
 VALIDATION_OUTPUT_DATA_PATH = "data/output_val.npy"
 
+
 def preprocess_stoichiometry(x):
     min_bounds = torch.tensor([273.15, 1e5, 0.2, 1e-0, 1])
     max_bounds = torch.tensor([1000.0, 2e6, 0.8, 1e-6, 1e4])
     x[:5] = min_max_scaling(x[:5],
                             min_bounds=min_bounds,
                             max_bounds=max_bounds)
+    transformer = FunctionTransformer(lambda x: x**0.5)
+    x[5:9] = transformer.fit_transform(x[5:9])
+    x[9:14] = transformer.fit_transform(x[9:14])
     return x
 
 
@@ -31,13 +36,16 @@ train_data = StoichiometryDataset(
 )
 
 train_scalers = train_data.get_output_scalers()
+mean, std = train_data.get_output_mean_std()
 
 validation_data = StoichiometryDataset(
     VALIDATION_INPUT_DATA_PATH,
     VALIDATION_OUTPUT_DATA_PATH,
     Train=False,
     transform_input=preprocess_stoichiometry,
-    output_scalers=train_scalers)
+    output_scalers=train_scalers,
+    mean=mean,
+    std=std)
 
 training_loader = DataLoader(train_data, batch_size=128, shuffle=True)
 validation_loader = DataLoader(validation_data, batch_size=128, shuffle=False)

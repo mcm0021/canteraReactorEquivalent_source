@@ -17,8 +17,8 @@ VALIDATION_OUTPUT_DATA_PATH = "data/output_val.npy"
 
 
 def preprocess_stoichiometry(x):
-    min_bounds = torch.tensor([273.15, 1e5, 0.2, 1e-0, 1])
-    max_bounds = torch.tensor([1000.0, 2e6, 0.8, 1e-6, 1e4])
+    min_bounds = np.array([273.15, 1e5, 0.2, 1e-6, 1], dtype=np.float32)
+    max_bounds = np.array([1000.0, 2e6, 0.8, 1.0, 1e4], dtype=np.float32)
     x[:5] = min_max_scaling(x[:5],
                             min_bounds=min_bounds,
                             max_bounds=max_bounds)

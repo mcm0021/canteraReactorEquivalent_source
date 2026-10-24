@@ -4,8 +4,6 @@ import torch
 from torch.utils.data import Dataset
 from sklearn.preprocessing import StandardScaler
 
-from nets.reactor_net import min_max_scaling
-
 
 class StoichiometryDataset(Dataset):
 
@@ -50,9 +48,9 @@ class StoichiometryDataset(Dataset):
         if self.transform_input:
             input = self.transform_input(input)
 
-        # target = min_max_scaling(target, self.min_scalers_output,
-        #                          self.max_scalers_output)
-        target = (target - self.mean) / self.std
+        if not self.Train:
+            target = (target - torch.as_tensor(self.mean, dtype=torch.float32)
+                      ) / torch.as_tensor(self.std, dtype=torch.float32)
 
         return input, target
 

@@ -22,11 +22,13 @@ train_data = StoichiometryDataset(
 
 train_scalers = train_data.get_output_scalers()
 mean, std = train_data.get_output_mean_std()
+print("Output mean:", mean)
+print("Output std:", std)
 
 validation_data = StoichiometryDataset(
     VALIDATION_INPUT_DATA_PATH,
     VALIDATION_OUTPUT_DATA_PATH,
-    Train=True,
+    Train=False,
     transform_input=preprocess_stoichiometry,
     output_scalers=train_scalers,
     mean=mean,
@@ -42,8 +44,8 @@ if device.type == "cuda":
     print("Using GPU for training")
 
 epochs = 5000
-optimizer = Adam(model.parameters(), lr=0.001)
-loss_fn = nn.MSELoss()
+optimizer = Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
+loss_fn = nn.SmoothL1Loss()
 
 for epoch in range(epochs):
     model.train()

@@ -1,61 +1,94 @@
 import numpy as np
 import torch
-
-from sklearn.preprocessing import FunctionTransformer, StandardScaler
+from sklearn.preprocessing import StandardScaler
 
 
 def get_ranges():
-    TEMPERATURE_RANGE = [300, 1000.0]
+    TEMPERATURE_RANGE = [300.0, 1000.0]
     PRESSURE_RANGE = [1e5, 2e6]
     POROSITY_RANGE = [0.2, 0.8]
-    ADVANCE_TIME_RANGE = [-6.0, 0.0]
-    AREAS_RANGE = [0.0, 4.0]
-    return TEMPERATURE_RANGE, PRESSURE_RANGE, POROSITY_RANGE, ADVANCE_TIME_RANGE, AREAS_RANGE
-
-
-def get_bounds():
-    temp_range, press_range, porosity_range, advance_time_range, areas_range = get_ranges(
+    ADVANCE_TIME_RANGE = [-6.0, 0.0]  # Note: Expects log10(dt) in [-6, 0]!
+    AREAS_RANGE = [0.0, 4.0]          # Note: Expects log10(area) in [0, 4]!
+    return (
+        TEMPERATURE_RANGE,
+        PRESSURE_RANGE,
+        POROSITY_RANGE,
+        ADVANCE_TIME_RANGE,
+        AREAS_RANGE,
     )
-    return np.min(np.array([
-        temp_range, press_range, porosity_range, advance_time_range,
-        areas_range
-    ]),
-                  axis=1), np.max(np.array([
-                      temp_range, press_range, porosity_range,
-                      advance_time_range, areas_range
-                  ]),
-                                  axis=1)
 
 
-def preprocess_stoichiometry(x):
-    x = preprocess_inputs(x[:5], x[5:9], x[9:14])
-    # y, _ = preprocess_outputs(y[:1], y[1:])
-    # return x, y
-    return x
+def get_bounds(device=None, dtype=torch.float32):
+    ranges = torch.tensor(get_ranges(), dtype=dtype, device=device)
+    min_bounds = ranges[:, 0]
+    max_bounds = ranges[:, 1]
+    return min_bounds, max_bounds
 
 
-def preprocess_inputs(scalar_input, mass_fractions, surface_coverages):
-    min_bounds, max_bounds = get_bounds()
-    # Min-max scaling for scalar inputs
-    scalar_input = min_max_scaling(scalar_input,
-                                   min_bounds=min_bounds,
-                                   max_bounds=max_bounds)
-    # Transform mass fractions and surface coverages using a square root function
-    # Values are transformed to reduce skewness and improve model performance (must be positive)
-    # mass_fractions = transform(mass_fractions, np.sqrt)
-    # surface_coverages = transform(surface_coverages, np.sqrt)
-    return torch.concatenate((scalar_input, mass_fractions, surface_coverages))
-
-
-def preprocess_outputs(delta_T, stoich_coordinates, scaler: StandardScaler):
-    return np.concatenate((delta_T, stoich_coordinates)), scaler.transform(
-        np.concatenate((delta_T, stoich_coordinates)))
-
-
-def min_max_scaling(data, min_bounds, max_bounds):
+def min_max_scaling(data: torch.Tensor, min_bounds: torch.Tensor, max_bounds: torch.Tensor):
     return (data - min_bounds) / (max_bounds - min_bounds)
 
 
-def transform(data, func):
-    transform = FunctionTransformer(func=func, validate=True)
-    return transform.fit_transform(data)
+def preprocess_stoichiometry(x: torch.Tensor):
+    # Ensure x is a tensor and check for inf/nan before processing
+    if not isinstance(x, torch.Tensor):
+        x = torch.as_tensor(x, dtype=torch.float32)
+    return preprocess_inputs(x[:5], x[5:9], x[9:14])
+
+
+def preprocess_inputs(
+    scalar_input: torch.Tensor,
+    mass_fractions: torch.Tensor,
+    surface_coverages: torch.Tensor,
+):
+    min_bounds, max_bounds = get_bounds(
+        device=scalar_input.device, dtype=scalar_input.dtype
+    )
+    
+    scalar_input = min_max_scaling(
+        scalar_input, min_bounds=min_bounds, max_bounds=max_bounds
+    )
+
+    # Safe square-root transform in pure PyTorch (clamping prevents NaN from -1e-16 noise)
+    # mass_fractions = torch.sqrt(torch.clamp(mass_fractions, min=0.0))
+    # surface_coverages = torch.sqrt(torch.clamp(surface_coverages, min=0.0))
+
+    return torch.cat((scalar_input, mass_fractions, surface_coverages))
+
+
+def fit_preprocess_outputs(y: np.ndarray | torch.Tensor):
+    """Fits the StandardScaler on training targets y (shape: [N, num_outputs])."""
+    y_np = y.detach().cpu().numpy() if isinstance(y, torch.Tensor) else np.asarray(y)
+    
+    scaler = StandardScaler()
+    scaler.fit(y_np)
+    
+    # Protect against constant columns (std == 0) in small 100-sample datasets
+    scaler.scale_ = np.where(scaler.scale_ < 1e-12, 1.0, scaler.scale_)
+    
+    y_scaled = torch.as_tensor(scaler.transform(y_np), dtype=torch.float32)
+    return y_scaled, scaler
+
+
+def transform_outputs(
+    stoich_coordinates: torch.Tensor,
+    delta_T: torch.Tensor,
+    scaler: StandardScaler,
+):
+    """
+    Transforms (stoich_coordinates, delta_T) using a fitted StandardScaler.
+    Matches predict_real order: stoich_coordinates FIRST, delta_T LAST!
+    """
+    if delta_T.ndim == 1:
+        delta_T = delta_T.unsqueeze(-1)
+    if stoich_coordinates.ndim == 1:
+        stoich_coordinates = stoich_coordinates.unsqueeze(0)
+
+    # Concatenate along feature dimension (dim=-1): [z_pred, delta_T]
+    combined = torch.cat((stoich_coordinates, delta_T), dim=-1)
+    combined_np = combined.detach().cpu().numpy()
+    
+    scaled_np = scaler.transform(combined_np)
+    return torch.as_tensor(
+        scaled_np, dtype=stoich_coordinates.dtype, device=stoich_coordinates.device
+    )

@@ -8,22 +8,41 @@ from src.state_conversion import amounts_to_state
 class StoichiometricNet(nn.Module):
 
     def __init__(self, input_size, hidden_size, output_size):
-        super(StoichiometricNet, self).__init__()
+        super().__init__()
 
-        self.hidden_layer = nn.Sequential(
+        # SiLU (Swish) is smooth, non-monotonic, and prevents dead neurons
+        self.input_layer = nn.Sequential(
             nn.Linear(input_size, hidden_size),
-            nn.ReLU(),
+            nn.SiLU(),
+        )
+        
+        # Deeper hidden representation with a residual skip connection
+        self.hidden_block = nn.Sequential(
             nn.Linear(hidden_size, hidden_size),
-            nn.ReLU(),
+            nn.SiLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.SiLU(),
         )
-        self.output_layer = nn.Sequential(
-            nn.Linear(hidden_size, output_size),
-        )
+        
+        self.output_layer = nn.Linear(hidden_size, output_size)
+        
+        self._init_weights()
+
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+        
+        # Optional: If your scaled outputs are still very small, initialize 
+        # the final layer with smaller weights so initial predictions start near 0
+        nn.init.uniform_(self.output_layer.weight, -1e-3, 1e-3)
 
     def forward(self, x):
-        hidden_output = self.hidden_layer(x)
-        output = self.output_layer(hidden_output)
-        return output
+        h = self.input_layer(x)
+        h = h + self.hidden_block(h)  # Residual connection stabilizes gradients
+        return self.output_layer(h)
 
     def predict(self, x):
         self.eval()

@@ -18,7 +18,6 @@ class StoichiometricNet(nn.Module):
         )
         self.output_layer = nn.Sequential(
             nn.Linear(hidden_size, output_size),
-            nn.Softplus()  # Ensure non-negative outputs
         )
 
     def forward(self, x):

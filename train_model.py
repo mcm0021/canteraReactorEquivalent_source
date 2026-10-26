@@ -1,32 +1,17 @@
 import torch
 import torch.nn as nn
-import numpy as np
 
 from torch.utils.data import DataLoader
 from torch.optim import Adam
-from sklearn.preprocessing import FunctionTransformer
 
 from nets.stoichiometric_net import StoichiometricNet
 from datasets.dataset_sotichiometry import StoichiometryDataset
-from nets.reactor_net import min_max_scaling
+from utils.preprocessing import preprocess_stoichiometry
 
 TRAIN_INPUT_DATA_PATH = "data/input_train.npy"
 TRAIN_OUTPUT_DATA_PATH = "data/output_train.npy"
 VALIDATION_INPUT_DATA_PATH = "data/input_val.npy"
 VALIDATION_OUTPUT_DATA_PATH = "data/output_val.npy"
-
-
-def preprocess_stoichiometry(x):
-    min_bounds = np.array([273.15, 1e5, 0.2, 1e-6, 1], dtype=np.float32)
-    max_bounds = np.array([1000.0, 2e6, 0.8, 1.0, 1e4], dtype=np.float32)
-    x[:5] = min_max_scaling(x[:5],
-                            min_bounds=min_bounds,
-                            max_bounds=max_bounds)
-    transformer = FunctionTransformer(lambda x: x**0.5)
-    x[5:9] = transformer.fit_transform(x[5:9])
-    x[9:14] = transformer.fit_transform(x[9:14])
-    return x
-
 
 train_data = StoichiometryDataset(
     TRAIN_INPUT_DATA_PATH,
@@ -41,7 +26,7 @@ mean, std = train_data.get_output_mean_std()
 validation_data = StoichiometryDataset(
     VALIDATION_INPUT_DATA_PATH,
     VALIDATION_OUTPUT_DATA_PATH,
-    Train=False,
+    Train=True,
     transform_input=preprocess_stoichiometry,
     output_scalers=train_scalers,
     mean=mean,
@@ -62,26 +47,40 @@ loss_fn = nn.MSELoss()
 
 for epoch in range(epochs):
     model.train()
+    train_loss = 0.0
+    num_samples = 0
+
     for inputs, targets in training_loader:
-        inputs, targets = inputs.to(device), targets.to(device)
+        inputs = inputs.to(device=device, dtype=torch.float32)
+        targets = targets.to(device=device, dtype=torch.float32)
         optimizer.zero_grad()
         predictions = model(inputs)
         loss = loss_fn(predictions, targets)
         loss.backward()
         optimizer.step()
 
-    if epoch % 1000 == 0:
+        batch_size = inputs.size(0)
+        train_loss += loss.item() * batch_size
+        num_samples += batch_size
+
+    if epoch % 100 == 0:
         model.eval()
         validation_loss = 0.0
+        val_num_samples = 0
         with torch.no_grad():
             for batch in validation_loader:
                 inputs, targets = batch
-                inputs, targets = inputs.to(device), targets.to(device)
+                inputs = inputs.to(device=device, dtype=torch.float32)
+                targets = targets.to(device=device, dtype=torch.float32)
                 predictions = model(inputs)
                 loss_v = loss_fn(predictions, targets)
-                validation_loss += loss_v.item()
+                batch_size = inputs.size(0)
+                validation_loss += loss_v.item() * batch_size
+                val_num_samples += batch_size
 
-        print(f"Epoch {epoch}, Loss: {loss.item()}")
-        print(f"Validation Loss: {validation_loss / len(validation_loader)}")
+        epoch_train_loss = train_loss / num_samples
+        epoch_validation_loss = validation_loss / val_num_samples
+        print(f"Epoch {epoch}, Loss: {epoch_train_loss}")
+        print(f"Validation Loss: {epoch_validation_loss}")
 
 torch.save(model.state_dict(), "model.pth")

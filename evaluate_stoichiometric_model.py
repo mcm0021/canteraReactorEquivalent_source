@@ -8,7 +8,6 @@ from torch.utils.data import DataLoader
 
 from datasets.dataset_reactor import ReactorDataset
 from datasets.dataset_sotichiometry import StoichiometryDataset
-from nets.reactor_net import min_max_scaling
 from nets.stoichiometric_net import StoichiometricNet
 from src.reactor import get_reactor_constants, initialize_reactor, initialize_variables
 from src.stoichiometry import (
@@ -16,6 +15,7 @@ from src.stoichiometry import (
     compute_stoichiometric_basis,
     state_to_amounts,
 )
+from utils.preprocessing import preprocess_stoichiometry, get_bounds
 
 CPU_DEVICE = torch.device("cpu")
 
@@ -26,30 +26,15 @@ MODEL_PATH = Path("model.pth")
 MECHANISM_PATH = Path(
     __file__).parent / "mechanisms" / "coOxidationRhAlumina.yaml"
 
-INPUT_MIN_BOUNDS = torch.tensor([273.15, 1e5, 0.2, 1e-6, 1.0],
-                                dtype=torch.float32)
-INPUT_MAX_BOUNDS = torch.tensor([1000.0, 2e6, 0.8, 1.0, 1e4],
-                                dtype=torch.float32)
+INPUT_MIN_BOUNDS, INPUT_MAX_BOUNDS = get_bounds()
 
 OUTPUT_MEAN = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=torch.float32)
 OUTPUT_STD = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=torch.float32)
 
 
-def preprocess_stoichiometry(x: torch.Tensor) -> torch.Tensor:
-    """Scales the first 5 input features using pre-allocated CPU min/max bounds."""
-    x_scaled = x.clone()
-    x_scaled[:5] = min_max_scaling(
-        x_scaled[:5],
-        min_bounds=INPUT_MIN_BOUNDS,
-        max_bounds=INPUT_MAX_BOUNDS,
-    )
-    # TODO: Apply any additional transformations to the remaining features if needed
-    return x_scaled
-
-
 def reverse_scaling(data: torch.Tensor) -> torch.Tensor:
     """Reverses the z-score scaling on CPU using pre-allocated mean and std."""
-    return data * OUTPUT_STD + OUTPUT_MEAN
+    return data
 
 
 @torch.inference_mode()
@@ -65,14 +50,21 @@ def evaluate_batches(
     all_sample_mapes = []
     eps = 1e-8
     for inputs, targets in loader:
-        predictions = (model.predict(inputs)
-                       if hasattr(model, "predict") else model(inputs))
+        inputs = inputs.to(device=CPU_DEVICE, dtype=torch.float32)
+        predictions = model.predict(inputs)
 
-        batch_mape = torch.mean(
-            torch.abs((targets - predictions) /
-                      torch.clamp(torch.abs(targets), min=eps)),
-            dim=1,
+        # A non-finite model output must not make the complete metric NaN.
+        # Count such entries as a large error instead.
+        relative_error = torch.abs(
+            (targets - predictions) / torch.clamp(torch.abs(targets), min=eps))
+        relative_error = torch.nan_to_num(
+            relative_error,
+            nan=1.0e6,
+            posinf=1.0e6,
+            neginf=1.0e6,
         )
+        batch_mape = torch.mean(relative_error, dim=1)
+        print(f"batch_mape: {batch_mape}")
         all_sample_mapes.append(batch_mape)
 
     sample_mapes = torch.cat(all_sample_mapes)
@@ -162,7 +154,7 @@ def main() -> None:
         str(EVALUATION_OUTPUT_PATH),
         Train=False,
         transform_input=preprocess_stoichiometry,
-        output_scalers=(OUTPUT_MIN_BOUNDS, OUTPUT_MAX_BOUNDS),
+        output_scalers=([], []),
         mean=OUTPUT_MEAN,
         std=OUTPUT_STD,
     )
@@ -185,13 +177,13 @@ def main() -> None:
     print(f"Scores above 0.1 (Error): {high_error_count}")
     print(f"Scores below 0.1 (Good):  {low_error_count}")
 
-    evaluation_data_actual = ReactorDataset(
-        str(EVALUATION_INPUT_PATH),
-        str(ACTUAL_OUTPUT_PATH),
-        transform=None,
-    )
-    evaluate_physical_states(model, evaluation_data, evaluation_data_actual,
-                             MECHANISM_PATH)
+    # evaluation_data_actual = ReactorDataset(
+    #     str(EVALUATION_INPUT_PATH),
+    #     str(ACTUAL_OUTPUT_PATH),
+    #     transform=None,
+    # )
+    # evaluate_physical_states(model, evaluation_data, evaluation_data_actual,
+    #                          MECHANISM_PATH)
 
 
 if __name__ == "__main__":

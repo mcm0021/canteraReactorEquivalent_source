@@ -6,7 +6,7 @@ import torch
 from sklearn.metrics import mean_absolute_percentage_error
 from torch.utils.data import DataLoader
 
-from datasets.dataset_reactor import ReactorDataset
+from datasets.dataset_basic import BasicDataset
 from datasets.dataset_sotichiometry import StoichiometryDataset
 from nets.stoichiometric_net import StoichiometricNet
 from src.reactor import get_reactor_constants, initialize_reactor, initialize_variables
@@ -19,8 +19,8 @@ from utils.preprocessing import preprocess_stoichiometry, get_bounds
 
 CPU_DEVICE = torch.device("cpu")
 
-EVALUATION_INPUT_PATH = Path("data/input_val.npy")
-EVALUATION_OUTPUT_PATH = Path("data/output_val.npy")
+EVALUATION_INPUT_PATH = Path("data/input_train.npy")
+EVALUATION_OUTPUT_PATH = Path("data/output_train.npy")
 ACTUAL_OUTPUT_PATH = Path("data/output_actual_val.npy")
 MODEL_PATH = Path("model.pth")
 MECHANISM_PATH = Path(
@@ -34,7 +34,7 @@ OUTPUT_STD = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=torch.float32)
 
 def reverse_scaling(data: torch.Tensor) -> torch.Tensor:
     """Reverses the z-score scaling on CPU using pre-allocated mean and std."""
-    return data
+    return data * OUTPUT_STD + OUTPUT_MEAN
 
 
 @torch.inference_mode()
@@ -64,7 +64,6 @@ def evaluate_batches(
             neginf=1.0e6,
         )
         batch_mape = torch.mean(relative_error, dim=1)
-        print(f"batch_mape: {batch_mape}")
         all_sample_mapes.append(batch_mape)
 
     sample_mapes = torch.cat(all_sample_mapes)
@@ -79,7 +78,7 @@ def evaluate_batches(
 def evaluate_physical_states(
     model: StoichiometricNet,
     scaled_dataset: StoichiometryDataset,
-    raw_dataset: ReactorDataset,
+    raw_dataset: BasicDataset,
     mechanism_path: Path,
     metric_fn: Callable = mean_absolute_percentage_error,
 ) -> None:
@@ -177,13 +176,13 @@ def main() -> None:
     print(f"Scores above 0.1 (Error): {high_error_count}")
     print(f"Scores below 0.1 (Good):  {low_error_count}")
 
-    # evaluation_data_actual = ReactorDataset(
-    #     str(EVALUATION_INPUT_PATH),
-    #     str(ACTUAL_OUTPUT_PATH),
-    #     transform=None,
-    # )
-    # evaluate_physical_states(model, evaluation_data, evaluation_data_actual,
-    #                          MECHANISM_PATH)
+    evaluation_data_actual = BasicDataset(
+        str(EVALUATION_INPUT_PATH),
+        str(ACTUAL_OUTPUT_PATH),
+    )
+
+    evaluate_physical_states(model, evaluation_data, evaluation_data_actual,
+                             MECHANISM_PATH)
 
 
 if __name__ == "__main__":

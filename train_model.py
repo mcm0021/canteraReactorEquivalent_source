@@ -6,18 +6,19 @@ from torch.optim import Adam
 
 from nets.stoichiometric_net import StoichiometricNet
 from datasets.dataset_sotichiometry import StoichiometryDataset
-from utils.preprocessing import preprocess_stoichiometry
+from utils.preprocessing import preprocess_stoichiometry, preprocess_stoichiometry_output
 
-TRAIN_INPUT_DATA_PATH = "data/input_train.npy"
-TRAIN_OUTPUT_DATA_PATH = "data/output_train.npy"
-VALIDATION_INPUT_DATA_PATH = "data/input_val.npy"
-VALIDATION_OUTPUT_DATA_PATH = "data/output_val.npy"
+TRAIN_INPUT_DATA_PATH = ""
+TRAIN_OUTPUT_DATA_PATH = ""
+VALIDATION_INPUT_DATA_PATH = ""
+VALIDATION_OUTPUT_DATA_PATH = ""
 
 train_data = StoichiometryDataset(
     TRAIN_INPUT_DATA_PATH,
     TRAIN_OUTPUT_DATA_PATH,
     Train=True,
     transform_input=preprocess_stoichiometry,
+    transform_output=preprocess_stoichiometry_output,
 )
 
 train_scalers = train_data.get_output_scalers()
@@ -30,6 +31,7 @@ validation_data = StoichiometryDataset(
     VALIDATION_OUTPUT_DATA_PATH,
     Train=False,
     transform_input=preprocess_stoichiometry,
+    transform_output=preprocess_stoichiometry_output,
     output_scalers=train_scalers,
     mean=mean,
     std=std)

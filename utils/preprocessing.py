@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
 
 def get_ranges():
@@ -35,6 +35,10 @@ def preprocess_stoichiometry(x: torch.Tensor):
     if not isinstance(x, torch.Tensor):
         x = torch.as_tensor(x, dtype=torch.float32)
     return preprocess_inputs(x[0], x[1], x[2], x[3], x[4], x[5:9], x[9:])
+
+
+def preprocess_stoichiometry_output(y: np.ndarray):
+    return preprocess_outputs(y[:, 0], y[:, 1:])
 
 
 def preprocess_inputs(
@@ -73,6 +77,38 @@ def preprocess_inputs(
     # surface_coverages = torch.sqrt(torch.clamp(surface_coverages, min=0.0))
 
     return torch.cat((scalar_input, mass_fractions, surface_coverages))
+
+def preprocess_outputs(
+    delta_T: np.ndarray,
+    stoich_coordinates: np.ndarray,
+):
+    delta_T = np.asarray(delta_T)
+    stoich_coordinates = np.asarray(stoich_coordinates)
+
+    stoich_coordinates = function_transform_outputs(stoich_coordinates, alpha=10e-14)
+
+    # Match the stoichiometry batch dimension before concatenating features.
+    delta_T = np.asarray(delta_T)
+    if delta_T.ndim == 0:
+        delta_T = delta_T.reshape(1, 1)
+    elif delta_T.ndim == 1:
+        delta_T = delta_T.reshape(-1, 1)
+
+    # Concatenate along feature dimension (dim=-1): [delta_T, z_pred]
+    combined = np.concatenate((delta_T, stoich_coordinates), axis=-1)
+    return combined
+
+def function_transform_outputs(stoich_coordinates: np.ndarray, alpha):
+    if stoich_coordinates.ndim == 1:
+        stoich_coordinates = stoich_coordinates[np.newaxis, :]
+
+    arcsinh_transform = FunctionTransformer(
+    func=lambda y: np.arcsinh(y / alpha),
+    inverse_func=lambda z: alpha * np.sinh(z),
+    validate=True,
+    )
+    
+    return arcsinh_transform.transform(stoich_coordinates)
 
 
 def fit_preprocess_outputs(y: np.ndarray | torch.Tensor):

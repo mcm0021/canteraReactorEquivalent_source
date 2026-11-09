@@ -26,6 +26,9 @@ class StoichiometryDataset(Dataset):
         with open(output_data_path, 'rb') as f:
             self.output_data = np.load(f)
 
+        if self.transform_output:
+            self.output_data = self.transform_output(self.output_data)
+
         if self.Train:
             scaler = StandardScaler()
             self.output_data = scaler.fit_transform(self.output_data)

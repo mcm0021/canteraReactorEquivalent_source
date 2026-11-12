@@ -1,8 +1,12 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
+import numpy as np
 
-from src.stoichiometry import coordinates_to_amounts
-from src.state_conversion import amounts_to_state
+from src.reactor import get_reactor_constants, initialize_reactor, initialize_variables
+from src.stoichiometry import build_stoichiometric_matrix, compute_stoichiometric_basis, coordinates_to_amounts
+from src.state_conversion import amounts_to_state, state_to_amounts
+
 
 
 def coordinates_to_real_state(n0, z_pred, Q, Vgas, W, A, Gamma, sizes):
@@ -61,8 +65,58 @@ class StoichiometricNet(nn.Module):
         predictions_real = reverse_scaling_fn(predictions)
 
         predictions_real = predictions_real.squeeze(0).detach().cpu().numpy()
-        z_pred, delta_T = predictions_real[:-1], predictions_real[-1] # 
+        z_pred, delta_T = predictions_real[:-1], predictions_real[-1]
         mass_fractions, coverages, gas_density = coordinates_to_real_state(
             n0, z_pred, Q, Vgas, W, A, Gamma, sizes)
         T_pred = T0 + delta_T
         return T_pred, mass_fractions, coverages, gas_density
+
+    def predict_real_from_input(self, single_x, coordinates, reverse_scaling_fn, mechanism_path):
+        gas, solid, surface = initialize_variables(mechanism_path)
+        num_gas_species = len(gas.species_names)
+    
+        S, _ = build_stoichiometric_matrix(gas, surface)
+        Q, _, _ = compute_stoichiometric_basis(S)
+
+        T_in = float(single_x[0])
+        P_in = float(single_x[1])
+        v_in = float(single_x[2])
+        cat_area = float(single_x[4])
+        gas_y = single_x[5:5 + num_gas_species]
+        surf_cov = single_x[5 + num_gas_species:]
+
+        reactor, reactor_surface = initialize_reactor(gas, solid, surface,
+                                                        T_in, P_in, v_in,
+                                                        cat_area, gas_y,
+                                                        surf_cov)
+        W, Gamma, sizes, Vgas, A = get_reactor_constants(
+            gas, solid, surface, v_in, cat_area, 1.1e-6)
+        n0 = state_to_amounts(
+            reactor.phase.Y,
+            reactor.phase.density,
+            Vgas,
+            W,
+            reactor_surface.coverages,
+            A,
+            Gamma,
+            sizes,
+        )
+
+        if coordinates is not None: 
+            return coordinates_to_real_state(n0, coordinates, Q, Vgas, W, A, Gamma, sizes)  
+        else: 
+            return self.predict_real(
+                coordinates,
+                n0,
+                Q,
+                W,
+                Vgas,
+                A,
+                Gamma,
+                sizes,
+                T_in,
+                reverse_scaling_fn,
+        )
+
+
+

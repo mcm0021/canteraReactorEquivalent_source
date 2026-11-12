@@ -5,8 +5,9 @@ from src.data_generation import generate_input_output_data
 from utils.preprocessing import get_ranges
 
 NUM_SAMPLES = 1000
-INPUT_DATA_PATH = "data/input_data.npy"
-OUTPUT_DATA_PATH = "data/output_data_stoichiometric.npy"
+PATH_PREFIX = "data/1000_samples/"
+INPUT_DATA_PATH = f"{PATH_PREFIX}input_data.npy"
+OUTPUT_DATA_PATH = f"{PATH_PREFIX}output_data_stoichiometric.npy"
 
 temperature_range, pressure_range, porosity_range, advance_time_range, areas_range = get_ranges(
 )
@@ -28,12 +29,15 @@ input_train = input_data[train_idx]
 input_val = input_data[val_idx]
 output_train = output_data[train_idx]
 output_val = output_data[val_idx]
+actual_output_train = actual_output_data[train_idx]
+actual_output_val = actual_output_data[val_idx]
 
 np.save(INPUT_DATA_PATH, input_data)
 np.save(OUTPUT_DATA_PATH, output_data)
-np.save("data/output_data_frame.npy", output_data_frame.to_numpy())
-np.save("data/input_train.npy", input_train)
-np.save("data/input_val.npy", input_val)
-np.save("data/output_train.npy", output_train)
-np.save("data/output_val.npy", output_val)
-np.save("data/output_actual_val.npy", actual_output_data)
+np.save(f"{PATH_PREFIX}output_data_frame.npy", output_data_frame.to_numpy())
+np.save(f"{PATH_PREFIX}input_train.npy", input_train)
+np.save(f"{PATH_PREFIX}input_val.npy", input_val)
+np.save(f"{PATH_PREFIX}output_train.npy", output_train)
+np.save(f"{PATH_PREFIX}output_val.npy", output_val)
+np.save(f"{PATH_PREFIX}actual_output_train.npy", actual_output_train)
+np.save(f"{PATH_PREFIX}actual_output_val.npy", actual_output_val)

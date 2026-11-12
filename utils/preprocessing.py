@@ -37,9 +37,16 @@ def preprocess_stoichiometry(x: torch.Tensor):
     return preprocess_inputs(x[0], x[1], x[2], x[3], x[4], x[5:9], x[9:])
 
 
-def preprocess_stoichiometry_output(y: np.ndarray):
-    return preprocess_outputs(y[:, 0], y[:, 1:])
+def preprocess_stoichiometry_output(y):
+    y = np.asarray(y)
 
+    stoich_coordinates = function_transform_outputs(
+        y[:, :-1],
+        alpha=10e-14,
+    )
+    delta_T = y[:, -1:]
+
+    return np.concatenate((stoich_coordinates, delta_T), axis=-1)
 
 def preprocess_inputs(
     temp_data: torch.Tensor,

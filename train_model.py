@@ -55,3 +55,5 @@ for epoch in range(epochs):
 
         print(f"Epoch {epoch}, Loss: {loss.item()}")
         print(f"Validation Loss: {validation_loss / len(validation_loader)}")
+        
+torch.save(model.state_dict(), "model.pth")

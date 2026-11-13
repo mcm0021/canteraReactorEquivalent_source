@@ -14,14 +14,15 @@ def atom_counts(amounts, gas, surface):
     """
     amounts = np.asarray(amounts, dtype=float)
     species = gas.species() + surface.species()
-    if amounts.shape != (len(species),):
-        raise ValueError('Expected one amount per species, gas first, then surface')
+    if amounts.shape != (len(species), ):
+        raise ValueError(
+            'Expected one amount per species, gas first, then surface')
     elements = sorted(set(gas.element_names) | set(surface.element_names))
-    composition = np.array([
-        [sp.composition.get(element, 0.0) for sp in species]
-        for element in elements
-    ])
+    composition = np.array(
+        [[sp.composition.get(element, 0.0) for sp in species]
+         for element in elements])
     return (composition @ amounts).tolist()
+
 
 # Convert to amounts as the amounts are conserved (not the mass fraction or coverage)
 def state_to_amounts(
@@ -35,17 +36,11 @@ def state_to_amounts(
     site_sizes,
 ):
     """Return species amounts in kmol: gas first, then surface."""
-    gas_amounts = (
-        gas_density * gas_volume
-        * np.asarray(mass_fractions)
-        / np.asarray(molecular_weights)
-    )
+    gas_amounts = (gas_density * gas_volume * np.asarray(mass_fractions) /
+                   np.asarray(molecular_weights))
 
-    surface_amounts = (
-        catalytic_area * site_density
-        * np.asarray(coverages)
-        / np.asarray(site_sizes)
-    )
+    surface_amounts = (catalytic_area * site_density * np.asarray(coverages) /
+                       np.asarray(site_sizes))
 
     return np.concatenate([gas_amounts, surface_amounts])
 
@@ -77,9 +72,7 @@ def amounts_to_state(
     mass_fractions = gas_masses / total_gas_mass
     gas_density = total_gas_mass / gas_volume
 
-    coverages = (
-        surface_amounts * site_sizes
-        / (catalytic_area * site_density)
-    )
+    coverages = (surface_amounts * site_sizes /
+                 (catalytic_area * site_density))
 
     return mass_fractions, coverages, gas_density

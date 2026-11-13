@@ -83,7 +83,7 @@ def evaluate_physical_states(
     raw_dataset: BasicDataset,
     mechanism_path: Path,
     metric_fn: Callable = mean_absolute_percentage_error,
-) -> None:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Evaluates physical state reconstruction (T, mass fractions, coverages) on CPU.
     """
@@ -94,6 +94,9 @@ def evaluate_physical_states(
     S, _ = build_stoichiometric_matrix(gas, surface)
     Q, _, _ = compute_stoichiometric_basis(S)
 
+    t_mape_list = []
+    mass_frac_mape_list = []
+    coverages_mape_list = []
     for (scaled_in, _), (raw_in, actual_target) in zip(scaled_dataset,
                                                        raw_dataset):
         T_in = float(raw_in[0].item())
@@ -143,10 +146,42 @@ def evaluate_physical_states(
                                    actual_np[2:2 + num_gas_species])
         coverages_mape = metric_fn(coverages, actual_np[2 + num_gas_species:])
 
+        t_mape_list.append(t_mape)
+        mass_frac_mape_list.append(mass_frac_mape)
+        coverages_mape_list.append(coverages_mape)
+
         print(f"T_pred: {pred_T:.2f} K | "
               f"T Abs Err: {t_abs_err:.2f} K (MAPE: {t_mape:.4f}) | "
               f"Mass Frac MAPE: {mass_frac_mape:.4f} | "
               f"Coverages MAPE: {coverages_mape:.4f}")
+
+    return np.array(t_mape_list), np.array(mass_frac_mape_list), np.array(
+        coverages_mape_list)
+
+
+def mape_buckets(delta_t_mape: np.ndarray, mass_frac_mape: np.ndarray,
+                 coverages_mape: np.ndarray) -> None:
+    """
+    Categorizes MAPE values into buckets and prints the counts for each bucket.
+    """
+    delta_t_buckets = [0.01, 0.05, 0.1, 0.2, 0.5, 1.0]
+    mass_frac_buckets = [0.01, 0.05, 0.1, 0.2, 0.5, 1.0]
+    coverages_buckets = [0.01, 0.05, 0.1, 0.2, 0.5, 1.0]
+
+    print("Delta T MAPE Buckets:")
+    for threshold in delta_t_buckets:
+        count = np.sum(delta_t_mape <= threshold)
+        print(f"MAPE <= {threshold:.2f}: {count}")
+
+    print("\nMass Fraction MAPE Buckets:")
+    for threshold in mass_frac_buckets:
+        count = np.sum(mass_frac_mape <= threshold)
+        print(f"MAPE <= {threshold:.2f}: {count}")
+
+    print("\nCoverages MAPE Buckets:")
+    for threshold in coverages_buckets:
+        count = np.sum(coverages_mape <= threshold)
+        print(f"MAPE <= {threshold:.2f}: {count}")
 
 
 def main() -> None:
@@ -183,8 +218,10 @@ def main() -> None:
         str(ACTUAL_OUTPUT_PATH),
     )
 
-    evaluate_physical_states(model, evaluation_data, evaluation_data_actual,
-                             MECHANISM_PATH)
+    delta_t_mape, mass_frac_mape, coverages_mape = evaluate_physical_states(
+        model, evaluation_data, evaluation_data_actual, MECHANISM_PATH)
+
+    mape_buckets(delta_t_mape, mass_frac_mape, coverages_mape)
 
 
 if __name__ == "__main__":

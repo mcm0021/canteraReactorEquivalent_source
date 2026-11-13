@@ -48,6 +48,7 @@ def preprocess_stoichiometry_output(y):
 
     return np.concatenate((stoich_coordinates, delta_T), axis=-1)
 
+
 def preprocess_inputs(
     temp_data: torch.Tensor,
     pressure_data: torch.Tensor,
@@ -85,73 +86,15 @@ def preprocess_inputs(
 
     return torch.cat((scalar_input, mass_fractions, surface_coverages))
 
-def preprocess_outputs(
-    delta_T: np.ndarray,
-    stoich_coordinates: np.ndarray,
-):
-    delta_T = np.asarray(delta_T)
-    stoich_coordinates = np.asarray(stoich_coordinates)
-
-    stoich_coordinates = function_transform_outputs(stoich_coordinates, alpha=10e-14)
-
-    # Match the stoichiometry batch dimension before concatenating features.
-    delta_T = np.asarray(delta_T)
-    if delta_T.ndim == 0:
-        delta_T = delta_T.reshape(1, 1)
-    elif delta_T.ndim == 1:
-        delta_T = delta_T.reshape(-1, 1)
-
-    # Concatenate along feature dimension (dim=-1): [delta_T, z_pred]
-    combined = np.concatenate((delta_T, stoich_coordinates), axis=-1)
-    return combined
 
 def function_transform_outputs(stoich_coordinates: np.ndarray, alpha):
     if stoich_coordinates.ndim == 1:
         stoich_coordinates = stoich_coordinates[np.newaxis, :]
 
     arcsinh_transform = FunctionTransformer(
-    func=lambda y: np.arcsinh(y / alpha),
-    inverse_func=lambda z: alpha * np.sinh(z),
-    validate=True,
+        func=lambda y: np.arcsinh(y / alpha),
+        inverse_func=lambda z: alpha * np.sinh(z),
+        validate=True,
     )
-    
+
     return arcsinh_transform.transform(stoich_coordinates)
-
-
-def fit_preprocess_outputs(y: np.ndarray | torch.Tensor):
-    """Fits the StandardScaler on training targets y (shape: [N, num_outputs])."""
-    y_np = y.detach().cpu().numpy() if isinstance(
-        y, torch.Tensor) else np.asarray(y)
-
-    scaler = StandardScaler()
-    scaler.fit(y_np)
-
-    # Protect against constant columns (std == 0) in small 100-sample datasets
-    scaler.scale_ = np.where(scaler.scale_ < 1e-12, 1.0, scaler.scale_)
-
-    y_scaled = torch.as_tensor(scaler.transform(y_np), dtype=torch.float32)
-    return y_scaled, scaler
-
-
-def transform_outputs(
-    stoich_coordinates: torch.Tensor,
-    delta_T: torch.Tensor,
-    scaler: StandardScaler,
-):
-    """
-    Transforms (stoich_coordinates, delta_T) using a fitted StandardScaler.
-    Matches predict_real order: stoich_coordinates FIRST, delta_T LAST!
-    """
-    if delta_T.ndim == 1:
-        delta_T = delta_T.unsqueeze(-1)
-    if stoich_coordinates.ndim == 1:
-        stoich_coordinates = stoich_coordinates.unsqueeze(0)
-
-    # Concatenate along feature dimension (dim=-1): [z_pred, delta_T]
-    combined = torch.cat((stoich_coordinates, delta_T), dim=-1)
-    combined_np = combined.detach().cpu().numpy()
-
-    scaled_np = scaler.transform(combined_np)
-    return torch.as_tensor(scaled_np,
-                           dtype=stoich_coordinates.dtype,
-                           device=stoich_coordinates.device)

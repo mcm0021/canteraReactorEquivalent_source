@@ -1,12 +1,9 @@
 import torch
 from torch import nn
-import torch.nn.functional as F
-import numpy as np
 
 from src.reactor import get_reactor_constants, initialize_reactor, initialize_variables
 from src.stoichiometry import build_stoichiometric_matrix, compute_stoichiometric_basis, coordinates_to_amounts
 from src.state_conversion import amounts_to_state, state_to_amounts
-
 
 
 def coordinates_to_real_state(n0, z_pred, Q, Vgas, W, A, Gamma, sizes):
@@ -44,14 +41,11 @@ class StoichiometricNet(nn.Module):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-        # Optional: If your scaled outputs are still very small, initialize
-        # the final layer with smaller weights so initial predictions start near 0
         nn.init.uniform_(self.output_layer.weight, -1e-3, 1e-3)
 
     def forward(self, x):
         h = self.input_layer(x)
-        h = h + self.hidden_block(
-            h)  # Residual connection stabilizes gradients
+        h = h + self.hidden_block(h)
         return self.output_layer(h)
 
     def predict(self, x):
@@ -71,10 +65,11 @@ class StoichiometricNet(nn.Module):
         T_pred = T0 + delta_T
         return T_pred, mass_fractions, coverages, gas_density
 
-    def predict_real_from_input(self, single_x, coordinates, reverse_scaling_fn, mechanism_path):
+    def predict_real_from_input(self, single_x, coordinates,
+                                reverse_scaling_fn, mechanism_path):
         gas, solid, surface = initialize_variables(mechanism_path)
         num_gas_species = len(gas.species_names)
-    
+
         S, _ = build_stoichiometric_matrix(gas, surface)
         Q, _, _ = compute_stoichiometric_basis(S)
 
@@ -86,9 +81,9 @@ class StoichiometricNet(nn.Module):
         surf_cov = single_x[5 + num_gas_species:]
 
         reactor, reactor_surface = initialize_reactor(gas, solid, surface,
-                                                        T_in, P_in, v_in,
-                                                        cat_area, gas_y,
-                                                        surf_cov)
+                                                      T_in, P_in, v_in,
+                                                      cat_area, gas_y,
+                                                      surf_cov)
         W, Gamma, sizes, Vgas, A = get_reactor_constants(
             gas, solid, surface, v_in, cat_area, 1.1e-6)
         n0 = state_to_amounts(
@@ -102,9 +97,10 @@ class StoichiometricNet(nn.Module):
             sizes,
         )
 
-        if coordinates is not None: 
-            return coordinates_to_real_state(n0, coordinates, Q, Vgas, W, A, Gamma, sizes)  
-        else: 
+        if coordinates is not None:
+            return coordinates_to_real_state(n0, coordinates, Q, Vgas, W, A,
+                                             Gamma, sizes)
+        else:
             return self.predict_real(
                 coordinates,
                 n0,
@@ -116,7 +112,4 @@ class StoichiometricNet(nn.Module):
                 sizes,
                 T_in,
                 reverse_scaling_fn,
-        )
-
-
-
+            )

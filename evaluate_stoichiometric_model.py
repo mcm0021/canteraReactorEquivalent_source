@@ -32,9 +32,13 @@ OUTPUT_MEAN = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=torch.float32)
 OUTPUT_STD = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=torch.float32)
 
 
-def reverse_scaling(data: torch.Tensor) -> torch.Tensor:
+def reverse_scaling(data: torch.Tensor, c=10e-14) -> torch.Tensor:
     """Reverses the z-score scaling on CPU using pre-allocated mean and std."""
-    return data * OUTPUT_STD + OUTPUT_MEAN
+    data = data * OUTPUT_STD + OUTPUT_MEAN
+    data[:, :-1] = c * torch.sinh(
+        data[:, :-1]
+    )  # Reverse the arcsinh transformation for stoichiometric coordinates
+    return data
 
 
 @torch.inference_mode()
@@ -53,8 +57,6 @@ def evaluate_batches(
         inputs = inputs.to(device=CPU_DEVICE, dtype=torch.float32)
         predictions = model.predict(inputs)
 
-        # A non-finite model output must not make the complete metric NaN.
-        # Count such entries as a large error instead.
         relative_error = torch.abs(
             (targets - predictions) / torch.clamp(torch.abs(targets), min=eps))
         relative_error = torch.nan_to_num(

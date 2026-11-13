@@ -1,0 +1,43 @@
+100000 (0.8/0.2 split) datapoints,
+128 neurons per layer,
+2 hidden layer,
+0.001 learning rate,
+5000 epochs,
+128 batch size
+
+
+Preprocessing:
+Inputs:
+Min-Max scaling of scalar inputs with given ranges
+Outputs: 
+Asinh transforming (c=10e-14) and then Z-Score scaling
+OUTPUT_MEAN = torch.tensor([-4.01327147, 5.64027736, 3.29150862, 5.23678926 ,-5.88886629, 0.30874068], dtype=torch.float32)
+OUTPUT_STD = torch.tensor([3.91557743, 3.51124804, 5.09327269, 3.81481043, 4.13155473, 1.17462742], dtype=torch.float32)
+
+
+Delta T MAPE Buckets:
+MAPE <= 0.01: 19961
+MAPE <= 0.05: 1
+MAPE <= 0.10: 0
+MAPE <= 0.20: 0
+MAPE <= 0.50: 0
+MAPE <= 1.00: 0
+MAPE >= 1.00: 0
+
+Mass Fraction MAPE Buckets:
+MAPE <= 0.01: 12764
+MAPE <= 0.05: 1525
+MAPE <= 0.10: 565
+MAPE <= 0.20: 651
+MAPE <= 0.50: 2276
+MAPE <= 1.00: 954
+MAPE >= 1.00: 1227
+
+Coverages MAPE Buckets:
+MAPE <= 0.01: 0
+MAPE <= 0.05: 0
+MAPE <= 0.10: 0
+MAPE <= 0.20: 0
+MAPE <= 0.50: 209
+MAPE <= 1.00: 7323
+MAPE >= 1.00: 12430

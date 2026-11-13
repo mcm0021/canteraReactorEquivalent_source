@@ -15,13 +15,13 @@ from src.stoichiometry import (
     compute_stoichiometric_basis,
     state_to_amounts,
 )
-from utils.preprocessing import preprocess_stoichiometry, get_bounds
+from utils.preprocessing import preprocess_stoichiometry, get_bounds, preprocess_stoichiometry_output
 
 CPU_DEVICE = torch.device("cpu")
 
-EVALUATION_INPUT_PATH = Path("data/input_train.npy")
-EVALUATION_OUTPUT_PATH = Path("data/output_train.npy")
-ACTUAL_OUTPUT_PATH = Path("data/output_actual_val.npy")
+EVALUATION_INPUT_PATH = Path("data/100k_samples/input_val.npy")
+EVALUATION_OUTPUT_PATH = Path("data/100k_samples/output_val.npy")
+ACTUAL_OUTPUT_PATH = Path("data/100k_samples/actual_output_val.npy")
 MODEL_PATH = Path("model.pth")
 MECHANISM_PATH = Path(
     __file__).parent / "mechanisms" / "coOxidationRhAlumina.yaml"
@@ -169,19 +169,27 @@ def mape_buckets(delta_t_mape: np.ndarray, mass_frac_mape: np.ndarray,
     coverages_buckets = [0.01, 0.05, 0.1, 0.2, 0.5, 1.0]
 
     print("Delta T MAPE Buckets:")
+    prev_count = 0
     for threshold in delta_t_buckets:
         count = np.sum(delta_t_mape <= threshold)
-        print(f"MAPE <= {threshold:.2f}: {count}")
+        print(f"MAPE <= {threshold:.2f}: {count - prev_count}")
+        prev_count = count
+    print(f"MAPE >= {delta_t_buckets[-1]:.2f}: {len(delta_t_mape) - prev_count}")
 
     print("\nMass Fraction MAPE Buckets:")
+    prev_count = 0
     for threshold in mass_frac_buckets:
         count = np.sum(mass_frac_mape <= threshold)
-        print(f"MAPE <= {threshold:.2f}: {count}")
-
+        print(f"MAPE <= {threshold:.2f}: {count - prev_count}")
+        prev_count = count
+    print(f"MAPE >= {mass_frac_buckets[-1]:.2f}: {len(mass_frac_mape) - prev_count}")
     print("\nCoverages MAPE Buckets:")
+    prev_count = 0
     for threshold in coverages_buckets:
         count = np.sum(coverages_mape <= threshold)
-        print(f"MAPE <= {threshold:.2f}: {count}")
+        print(f"MAPE <= {threshold:.2f}: {count - prev_count}")
+        prev_count = count
+    print(f"MAPE >= {coverages_buckets[-1]:.2f}: {len(coverages_mape) - prev_count}")
 
 
 def main() -> None:
@@ -190,6 +198,7 @@ def main() -> None:
         str(EVALUATION_OUTPUT_PATH),
         Train=False,
         transform_input=preprocess_stoichiometry,
+        transform_output=preprocess_stoichiometry_output,
         output_scalers=([], []),
         mean=OUTPUT_MEAN,
         std=OUTPUT_STD,

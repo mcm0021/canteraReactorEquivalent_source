@@ -222,3 +222,4 @@ __marimo__/
 # Personal
 *.npy
 *.md
+sklearn-env~/
